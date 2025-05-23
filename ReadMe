@@ -1,0 +1,61 @@
+# Tech_Run: A Classic Platform Game
+
+I've created a platform game called "Tech_Run" using Pygame. The game features 10 levels with increasing difficulty, where you'll
+navigate through platforms, collect coins, and avoid obstacles.
+
+## Game Features
+
+• 10 progressively challenging levels
+• Coin collection system to track your score
+• Health system that decreases when hitting obstacles
+• Simple but effective shape-based graphics
+• Level completion flags to progress through the game
+
+## How to Play
+
+### Prerequisites
+
+Before you can play Tech_Run, you'll need:
+• Python 3.x installed on your computer
+• The Pygame library
+
+### Installation
+
+1. Make sure Python is installed on your system
+2. Install Pygame using pip:
+
+   pip install pygame
+
+3. Run the game:
+
+   python tech_run.py
+
+
+### Controls
+
+• **Left Arrow**: Move your character left
+• **Right Arrow**: Move your character right
+• **Space**: Jump (you can only jump when on a platform)
+• **Escape**: Quit the game
+• **R**: Restart the game after game over or completion
+
+### Gameplay Instructions
+
+1. You control a blue square character
+2. Navigate through each level by jumping on green platforms
+3. Collect yellow coins to increase your score
+4. Avoid red obstacles - they will decrease your health
+5. Reach the purple flag at the end of each level to progress
+6. Complete all 10 levels to win the game
+7. If your health reaches zero or you fall off the screen, it's game over
+
+### Level Progression
+
+The game starts simple but gets progressively more challenging:
+• Level 1: Basic platforms and coins to get familiar with controls
+• Level 2-3: Introduction to obstacles and more complex layouts
+• Level 4-6: More challenging jumps and strategic obstacle placement
+• Level 7-9: Complex platform arrangements requiring precise timing
+• Level 10: The ultimate challenge with minimal platforms and maximum obstacles
+
+The code is now ready in your directory. Enjoy playing Tech_Run!
