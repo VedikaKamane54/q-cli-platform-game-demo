@@ -1,0 +1,585 @@
++      1: import pygame
++      2: import sys
++      3: import random
++      4:
++      5: # Initialize pygame
++      6: pygame.init()
++      7:
++      8: # Constants
++      9: SCREEN_WIDTH = 800
++     10: SCREEN_HEIGHT = 600
++     11: FPS = 60
++     12: GRAVITY = 0.75
++     13: SCROLL_THRESHOLD = 200
++     14: MAX_PLATFORMS = 10
++     15:
++     16: # Colors
++     17: WHITE = (255, 255, 255)
++     18: BLACK = (0, 0, 0)
++     19: GREEN = (0, 255, 0)
++     20: RED = (255, 0, 0)
++     21: BLUE = (0, 0, 255)
++     22: YELLOW = (255, 255, 0)
++     23: PURPLE = (128, 0, 128)
++     24: ORANGE = (255, 165, 0)
++     25: CYAN = (0, 255, 255)
++     26: MAGENTA = (255, 0, 255)
++     27: BROWN = (165, 42, 42)
++     28:
++     29: # Set up the display
++     30: screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
++     31: pygame.display.set_caption("Tech_Run")
++     32: clock = pygame.time.Clock()
++     33:
++     34: # Load fonts
++     35: font = pygame.font.SysFont('Arial', 24)
++     36: large_font = pygame.font.SysFont('Arial', 40)
++     37:
++     38: class Player:
++     39:     def __init__(self, x, y):
++     40:         self.rect = pygame.Rect(x, y, 30, 50)
++     41:         self.vel_y = 0
++     42:         self.jumped = False
++     43:         self.direction = 0
++     44:         self.in_air = True
++     45:         self.flip = False
++     46:         self.health = 100
++     47:         self.max_health = 100
++     48:         self.coins = 0
++     49:
++     50:     def update(self, platforms, coins, obstacles, level_complete):
++     51:         dx = 0
++     52:         dy = 0
++     53:
++     54:         # Get key presses
++     55:         key = pygame.key.get_pressed()
++     56:         if key[pygame.K_LEFT]:
++     57:             dx = -5
++     58:             self.flip = True
++     59:         if key[pygame.K_RIGHT]:
++     60:             dx = 5
++     61:             self.flip = False
++     62:         if key[pygame.K_SPACE] and not self.jumped and not self.in_air:
++     63:             self.vel_y = -15
++     64:             self.jumped = True
++     65:             self.in_air = True
++     66:
++     67:         if not key[pygame.K_SPACE]:
++     68:             self.jumped = False
++     69:
++     70:         # Apply gravity
++     71:         self.vel_y += GRAVITY
++     72:         if self.vel_y > 10:
++     73:             self.vel_y = 10
++     74:         dy += self.vel_y
++     75:
++     76:         # Check for collision with platforms
++     77:         self.in_air = True
++     78:         for platform in platforms:
++     79:             # Check for collision in x direction
++     80:             if platform.rect.colliderect(self.rect.x + dx, self.rect.y, self.rect.width, self.rect.height):
++     81:                 dx = 0
++     82:
++     83:             # Check for collision in y direction
++     84:             if platform.rect.colliderect(self.rect.x, self.rect.y + dy, self.rect.width, self.rect.height):
++     85:                 # Check if below platform
++     86:                 if self.vel_y < 0:
++     87:                     dy = platform.rect.bottom - self.rect.top
++     88:                     self.vel_y = 0
++     89:                 # Check if above platform
++     90:                 elif self.vel_y >= 0:
++     91:                     dy = platform.rect.top - self.rect.bottom
++     92:                     self.vel_y = 0
++     93:                     self.in_air = False
++     94:
++     95:         # Check for collision with coins
++     96:         for coin in coins[:]:
++     97:             if self.rect.colliderect(coin.rect):
++     98:                 self.coins += 1
++     99:                 coins.remove(coin)
++    100:
++    101:         # Check for collision with obstacles
++    102:         for obstacle in obstacles:
++    103:             if self.rect.colliderect(obstacle.rect):
++    104:                 self.health -= 1
++    105:                 if self.health <= 0:
++    106:                     return True  # Game over
++    107:
++    108:         # Check if player has fallen off the screen
++    109:         if self.rect.top > SCREEN_HEIGHT:
++    110:             return True  # Game over
++    111:
++    112:         # Check if player has reached the end of the level
++    113:         if level_complete and self.rect.colliderect(level_complete.rect):
++    114:             return "next_level"
++    115:
++    116:         # Update player position
++    117:         self.rect.x += dx
++    118:         self.rect.y += dy
++    119:
++    120:         # Keep player on screen
++    121:         if self.rect.left < 0:
++    122:             self.rect.left = 0
++    123:         if self.rect.right > SCREEN_WIDTH:
++    124:             self.rect.right = SCREEN_WIDTH
++    125:
++    126:         return False
++    127:
++    128:     def draw(self):
++    129:         pygame.draw.rect(screen, BLUE, self.rect)
++    130:         # Draw eyes
++    131:         eye_size = 5
++    132:         if self.flip:
++    133:             pygame.draw.circle(screen, WHITE, (self.rect.left + 10, self.rect.top + 15), eye_size)
++    134:             pygame.draw.circle(screen, BLACK, (self.rect.left + 10, self.rect.top + 15), eye_size - 2)
++    135:         else:
++    136:             pygame.draw.circle(screen, WHITE, (self.rect.right - 10, self.rect.top + 15), eye_size)
++    137:             pygame.draw.circle(screen, BLACK, (self.rect.right - 10, self.rect.top + 15), eye_size - 2)
++    138:
++    139:         # Draw health bar
++    140:         pygame.draw.rect(screen, RED, (10, 10, self.max_health, 20))
++    141:         pygame.draw.rect(screen, GREEN, (10, 10, self.health, 20))
++    142:
++    143:         # Draw coin count
++    144:         coin_text = font.render(f'Coins: {self.coins}', True, YELLOW)
++    145:         screen.blit(coin_text, (10, 40))
++    146:
++    147: class Platform:
++    148:     def __init__(self, x, y, width, height, color=GREEN):
++    149:         self.rect = pygame.Rect(x, y, width, height)
++    150:         self.color = color
++    151:
++    152:     def draw(self):
++    153:         pygame.draw.rect(screen, self.color, self.rect)
++    154:
++    155: class Coin:
++    156:     def __init__(self, x, y):
++    157:         self.rect = pygame.Rect(x, y, 15, 15)
++    158:
++    159:     def draw(self):
++    160:         pygame.draw.circle(screen, YELLOW, self.rect.center, 7)
++    161:
++    162: class Obstacle:
++    163:     def __init__(self, x, y, width, height, color=RED):
++    164:         self.rect = pygame.Rect(x, y, width, height)
++    165:         self.color = color
++    166:
++    167:     def draw(self):
++    168:         pygame.draw.rect(screen, self.color, self.rect)
++    169:
++    170: class LevelComplete:
++    171:     def __init__(self, x, y):
++    172:         self.rect = pygame.Rect(x, y, 30, 50)
++    173:
++    174:     def draw(self):
++    175:         pygame.draw.rect(screen, PURPLE, self.rect)
++    176:
++    177: def create_level(level):
++    178:     platforms = []
++    179:     coins = []
++    180:     obstacles = []
++    181:
++    182:     # Base platform
++    183:     platforms.append(Platform(0, SCREEN_HEIGHT - 50, SCREEN_WIDTH, 50, GREEN))
++    184:
++    185:     # Different level configurations
++    186:     if level == 1:
++    187:         # Level 1: Simple platforms
++    188:         platforms.append(Platform(100, 400, 200, 20))
++    189:         platforms.append(Platform(400, 300, 200, 20))
++    190:         platforms.append(Platform(200, 200, 200, 20))
++    191:
++    192:         # Add coins
++    193:         coins.append(Coin(150, 380))
++    194:         coins.append(Coin(450, 280))
++    195:         coins.append(Coin(250, 180))
++    196:
++    197:         # Level complete flag
++    198:         level_complete = LevelComplete(700, SCREEN_HEIGHT - 100)
++    199:
++    200:     elif level == 2:
++    201:         # Level 2: More platforms and obstacles
++    202:         platforms.append(Platform(100, 450, 100, 20))
++    203:         platforms.append(Platform(300, 400, 100, 20))
++    204:         platforms.append(Platform(500, 350, 100, 20))
++    205:         platforms.append(Platform(300, 250, 200, 20))
++    206:         platforms.append(Platform(100, 200, 100, 20))
++    207:
++    208:         # Add coins
++    209:         coins.append(Coin(120, 430))
++    210:         coins.append(Coin(320, 380))
++    211:         coins.append(Coin(520, 330))
++    212:         coins.append(Coin(350, 230))
++    213:         coins.append(Coin(120, 180))
++    214:
++    215:         # Add obstacles
++    216:         obstacles.append(Obstacle(400, 380, 30, 20))
++    217:
++    218:         # Level complete flag
++    219:         level_complete = LevelComplete(700, SCREEN_HEIGHT - 100)
++    220:
++    221:     elif level == 3:
++    222:         # Level 3: More complex layout
++    223:         platforms.append(Platform(50, 450, 100, 20))
++    224:         platforms.append(Platform(200, 400, 100, 20))
++    225:         platforms.append(Platform(350, 350, 100, 20))
++    226:         platforms.append(Platform(500, 300, 100, 20))
++    227:         platforms.append(Platform(650, 250, 100, 20))
++    228:         platforms.append(Platform(500, 200, 100, 20))
++    229:         platforms.append(Platform(350, 150, 100, 20))
++    230:
++    231:         # Add coins
++    232:         coins.append(Coin(70, 430))
++    233:         coins.append(Coin(220, 380))
++    234:         coins.append(Coin(370, 330))
++    235:         coins.append(Coin(520, 280))
++    236:         coins.append(Coin(670, 230))
++    237:         coins.append(Coin(520, 180))
++    238:         coins.append(Coin(370, 130))
++    239:
++    240:         # Add obstacles
++    241:         obstacles.append(Obstacle(250, 380, 30, 20))
++    242:         obstacles.append(Obstacle(400, 330, 30, 20))
++    243:         obstacles.append(Obstacle(550, 280, 30, 20))
++    244:
++    245:         # Level complete flag
++    246:         level_complete = LevelComplete(350, 100)
++    247:
++    248:     elif level == 4:
++    249:         # Level 4: Moving platforms (simulated with more obstacles)
++    250:         platforms.append(Platform(100, 450, 80, 20))
++    251:         platforms.append(Platform(250, 400, 80, 20))
++    252:         platforms.append(Platform(400, 350, 80, 20))
++    253:         platforms.append(Platform(550, 300, 80, 20))
++    254:         platforms.append(Platform(400, 250, 80, 20))
++    255:         platforms.append(Platform(250, 200, 80, 20))
++    256:         platforms.append(Platform(100, 150, 80, 20))
++    257:
++    258:         # Add coins
++    259:         coins.append(Coin(120, 430))
++    260:         coins.append(Coin(270, 380))
++    261:         coins.append(Coin(420, 330))
++    262:         coins.append(Coin(570, 280))
++    263:         coins.append(Coin(420, 230))
++    264:         coins.append(Coin(270, 180))
++    265:         coins.append(Coin(120, 130))
++    266:
++    267:         # Add obstacles (more of them)
++    268:         obstacles.append(Obstacle(200, 430, 30, 20))
++    269:         obstacles.append(Obstacle(350, 380, 30, 20))
++    270:         obstacles.append(Obstacle(500, 330, 30, 20))
++    271:         obstacles.append(Obstacle(500, 230, 30, 20))
++    272:         obstacles.append(Obstacle(350, 180, 30, 20))
++    273:
++    274:         # Level complete flag
++    275:         level_complete = LevelComplete(100, 100)
++    276:
++    277:     elif level == 5:
++    278:         # Level 5: Narrow platforms
++    279:         platforms.append(Platform(100, 450, 60, 20))
++    280:         platforms.append(Platform(250, 400, 60, 20))
++    281:         platforms.append(Platform(400, 350, 60, 20))
++    282:         platforms.append(Platform(550, 300, 60, 20))
++    283:         platforms.append(Platform(700, 250, 60, 20))
++    284:         platforms.append(Platform(550, 200, 60, 20))
++    285:         platforms.append(Platform(400, 150, 60, 20))
++    286:         platforms.append(Platform(250, 100, 60, 20))
++    287:
++    288:         # Add coins
++    289:         coins.append(Coin(120, 430))
++    290:         coins.append(Coin(270, 380))
++    291:         coins.append(Coin(420, 330))
++    292:         coins.append(Coin(570, 280))
++    293:         coins.append(Coin(720, 230))
++    294:         coins.append(Coin(570, 180))
++    295:         coins.append(Coin(420, 130))
++    296:         coins.append(Coin(270, 80))
++    297:
++    298:         # Add obstacles
++    299:         obstacles.append(Obstacle(180, 430, 30, 20))
++    300:         obstacles.append(Obstacle(330, 380, 30, 20))
++    301:         obstacles.append(Obstacle(480, 330, 30, 20))
++    302:         obstacles.append(Obstacle(630, 280, 30, 20))
++    303:         obstacles.append(Obstacle(630, 180, 30, 20))
++    304:         obstacles.append(Obstacle(480, 130, 30, 20))
++    305:
++    306:         # Level complete flag
++    307:         level_complete = LevelComplete(250, 50)
++    308:
++    309:     elif level == 6:
++    310:         # Level 6: Zigzag pattern with obstacles
++    311:         platforms.append(Platform(50, 450, 100, 20))
++    312:         platforms.append(Platform(250, 400, 100, 20))
++    313:         platforms.append(Platform(450, 350, 100, 20))
++    314:         platforms.append(Platform(650, 300, 100, 20))
++    315:         platforms.append(Platform(450, 250, 100, 20))
++    316:         platforms.append(Platform(250, 200, 100, 20))
++    317:         platforms.append(Platform(50, 150, 100, 20))
++    318:
++    319:         # Add coins
++    320:         coins.append(Coin(100, 430))
++    321:         coins.append(Coin(300, 380))
++    322:         coins.append(Coin(500, 330))
++    323:         coins.append(Coin(700, 280))
++    324:         coins.append(Coin(500, 230))
++    325:         coins.append(Coin(300, 180))
++    326:         coins.append(Coin(100, 130))
++    327:
++    328:         # Add obstacles
++    329:         for i in range(100, 701, 200):
++    330:             obstacles.append(Obstacle(i, 500, 30, 30))
++    331:         obstacles.append(Obstacle(200, 380, 30, 20))
++    332:         obstacles.append(Obstacle(400, 330, 30, 20))
++    333:         obstacles.append(Obstacle(600, 280, 30, 20))
++    334:         obstacles.append(Obstacle(400, 230, 30, 20))
++    335:         obstacles.append(Obstacle(200, 180, 30, 20))
++    336:
++    337:         # Level complete flag
++    338:         level_complete = LevelComplete(50, 100)
++    339:
++    340:     elif level == 7:
++    341:         # Level 7: Vertical challenge
++    342:         platforms.append(Platform(100, 500, 100, 20))
++    343:         platforms.append(Platform(300, 500, 100, 20))
++    344:         platforms.append(Platform(500, 500, 100, 20))
++    345:         platforms.append(Platform(700, 500, 100, 20))
++    346:
++    347:         platforms.append(Platform(100, 400, 100, 20))
++    348:         platforms.append(Platform(300, 400, 100, 20))
++    349:         platforms.append(Platform(500, 400, 100, 20))
++    350:         platforms.append(Platform(700, 400, 100, 20))
++    351:
++    352:         platforms.append(Platform(100, 300, 100, 20))
++    353:         platforms.append(Platform(300, 300, 100, 20))
++    354:         platforms.append(Platform(500, 300, 100, 20))
++    355:         platforms.append(Platform(700, 300, 100, 20))
++    356:
++    357:         platforms.append(Platform(100, 200, 100, 20))
++    358:         platforms.append(Platform(300, 200, 100, 20))
++    359:         platforms.append(Platform(500, 200, 100, 20))
++    360:         platforms.append(Platform(700, 200, 100, 20))
++    361:
++    362:         platforms.append(Platform(100, 100, 100, 20))
++    363:
++    364:         # Add coins
++    365:         for i in range(150, 751, 200):
++    366:             for j in range(380, 81, -100):
++    367:                 coins.append(Coin(i, j))
++    368:
++    369:         # Add obstacles
++    370:         for i in range(150, 751, 200):
++    371:             for j in range(480, 181, -100):
++    372:                 if random.random() > 0.5:  # 50% chance to place an obstacle
++    373:                     obstacles.append(Obstacle(i, j, 30, 20))
++    374:
++    375:         # Level complete flag
++    376:         level_complete = LevelComplete(100, 50)
++    377:
++    378:     elif level == 8:
++    379:         # Level 8: Sparse platforms with many obstacles
++    380:         platforms.append(Platform(50, 500, 80, 20))
++    381:         platforms.append(Platform(200, 450, 80, 20))
++    382:         platforms.append(Platform(350, 400, 80, 20))
++    383:         platforms.append(Platform(500, 350, 80, 20))
++    384:         platforms.append(Platform(650, 300, 80, 20))
++    385:         platforms.append(Platform(500, 250, 80, 20))
++    386:         platforms.append(Platform(350, 200, 80, 20))
++    387:         platforms.append(Platform(200, 150, 80, 20))
++    388:         platforms.append(Platform(50, 100, 80, 20))
++    389:
++    390:         # Add coins
++    391:         coins.append(Coin(90, 480))
++    392:         coins.append(Coin(240, 430))
++    393:         coins.append(Coin(390, 380))
++    394:         coins.append(Coin(540, 330))
++    395:         coins.append(Coin(690, 280))
++    396:         coins.append(Coin(540, 230))
++    397:         coins.append(Coin(390, 180))
++    398:         coins.append(Coin(240, 130))
++    399:         coins.append(Coin(90, 80))
++    400:
+ 401:         # Add obstacles (many of them)
++    402:         obstacles.append(Obstacle(150, 480, 30, 20))
++    403:         obstacles.append(Obstacle(300, 430, 30, 20))
++    404:         obstacles.append(Obstacle(450, 380, 30, 20))
++    405:         obstacles.append(Obstacle(600, 330, 30, 20))
++    406:         obstacles.append(Obstacle(600, 230, 30, 20))
++    407:         obstacles.append(Obstacle(450, 180, 30, 20))
++    408:         obstacles.append(Obstacle(300, 130, 30, 20))
++    409:
++    410:         # Add moving obstacles (simulated with more obstacles)
++    411:         for i in range(100, 701, 100):
++    412:             obstacles.append(Obstacle(i, 550, 20, 20))
++    413:
++    414:         # Level complete flag
++    415:         level_complete = LevelComplete(50, 50)
++    416:
++    417:     elif level == 9:
++    418:         # Level 9: Complex pattern with narrow gaps
++    419:         for i in range(0, 801, 200):
++    420:             platforms.append(Platform(i, 500, 100, 20))
++    421:
++    422:         for i in range(100, 801, 200):
++    423:             platforms.append(Platform(i, 400, 100, 20))
++    424:
++    425:         for i in range(0, 801, 200):
++    426:             platforms.append(Platform(i, 300, 100, 20))
++    427:
++    428:         for i in range(100, 801, 200):
++    429:             platforms.append(Platform(i, 200, 100, 20))
++    430:
++    431:         platforms.append(Platform(0, 100, 100, 20))
++    432:
++    433:         # Add coins
++    434:         for i in range(50, 751, 100):
++    435:             for j in range(480, 181, -100):
++    436:                 if random.random() > 0.7:  # 30% chance to place a coin
++    437:                     coins.append(Coin(i, j))
++    438:
++    439:         # Add obstacles
++    440:         for i in range(50, 751, 100):
++    441:             for j in range(480, 181, -100):
++    442:                 if random.random() > 0.7:  # 30% chance to place an obstacle
++    443:                     obstacles.append(Obstacle(i, j, 30, 20))
++    444:
++    445:         # Level complete flag
++    446:         level_complete = LevelComplete(50, 50)
++    447:
++    448:     elif level == 10:
++    449:         # Level 10: Final challenge
++    450:         # Minimal platforms with maximum obstacles
++    451:         platforms.append(Platform(50, 500, 60, 20))
++    452:         platforms.append(Platform(200, 450, 60, 20))
++    453:         platforms.append(Platform(350, 400, 60, 20))
++    454:         platforms.append(Platform(500, 350, 60, 20))
++    455:         platforms.append(Platform(650, 300, 60, 20))
++    456:         platforms.append(Platform(500, 250, 60, 20))
++    457:         platforms.append(Platform(350, 200, 60, 20))
++    458:         platforms.append(Platform(200, 150, 60, 20))
++    459:         platforms.append(Platform(50, 100, 60, 20))
++    460:
++    461:         # Add coins
++    462:         coins.append(Coin(80, 480))
++    463:         coins.append(Coin(230, 430))
++    464:         coins.append(Coin(380, 380))
++    465:         coins.append(Coin(530, 330))
++    466:         coins.append(Coin(680, 280))
++    467:         coins.append(Coin(530, 230))
++    468:         coins.append(Coin(380, 180))
++    469:         coins.append(Coin(230, 130))
++    470:         coins.append(Coin(80, 80))
++    471:
++    472:         # Add many obstacles
++    473:         obstacles.append(Obstacle(130, 480, 30, 20))
++    474:         obstacles.append(Obstacle(280, 430, 30, 20))
++    475:         obstacles.append(Obstacle(430, 380, 30, 20))
++    476:         obstacles.append(Obstacle(580, 330, 30, 20))
++    477:         obstacles.append(Obstacle(580, 230, 30, 20))
++    478:         obstacles.append(Obstacle(430, 180, 30, 20))
++    479:         obstacles.append(Obstacle(280, 130, 30, 20))
++    480:
++    481:         # Add more obstacles
++    482:         for i in range(0, 801, 50):
++    483:             if random.random() > 0.7:  # 30% chance to place an obstacle
++    484:                 obstacles.append(Obstacle(i, 550, 20, 20))
++    485:
++    486:         # Add moving obstacles (simulated with more obstacles)
++    487:         for i in range(100, 701, 100):
++    488:             obstacles.append(Obstacle(i, 550, 20, 20))
++    489:             obstacles.append(Obstacle(i + 50, 450, 20, 20))
++    490:             obstacles.append(Obstacle(i, 350, 20, 20))
++    491:             obstacles.append(Obstacle(i + 50, 250, 20, 20))
++    492:
++    493:         # Level complete flag
++    494:         level_complete = LevelComplete(50, 50)
++    495:
++    496:     return platforms, coins, obstacles, level_complete
++    497:
++    498: def main():
++    499:     # Game variables
++    500:     game_over = False
++    501:     game_complete = False
++    502:     current_level = 1
++    503:     max_level = 10
++    504:
++    505:     # Create player
++    506:     player = Player(100, SCREEN_HEIGHT - 130)
++    507:
++    508:     # Create initial level
++    509:     platforms, coins, obstacles, level_complete = create_level(current_level)
++    510:
++    511:     # Game loop
++    512:     running = True
++    513:     while running:
++    514:         clock.tick(FPS)
++    515:
++    516:         # Handle events
++    517:         for event in pygame.event.get():
++    518:             if event.type == pygame.QUIT:
++    519:                 running = False
++    520:             if event.type == pygame.KEYDOWN:
++    521:                 if event.key == pygame.K_ESCAPE:
++    522:                     running = False
++    523:                 if event.key == pygame.K_r and (game_over or game_complete):
++    524:                     # Reset game
++    525:                     game_over = False
++    526:                     game_complete = False
++    527:                     current_level = 1
++    528:                     player = Player(100, SCREEN_HEIGHT - 130)
++    529:                     platforms, coins, obstacles, level_complete = create_level(current_level)
++    530:
++    531:         # Update game
++    532:         if not game_over and not game_complete:
++    533:             result = player.update(platforms, coins, obstacles, level_complete)
++    534:
++    535:             if result == "next_level":
++    536:                 current_level += 1
++    537:                 if current_level <= max_level:
++    538:                     player = Player(100, SCREEN_HEIGHT - 130)
++    539:                     platforms, coins, obstacles, level_complete = create_level(current_level)
++    540:                 else:
++    541:                     game_complete = True
++    542:             elif result:
++    543:                 game_over = True
++    544:
++    545:         # Draw game
++    546:         screen.fill(BLACK)
++    547:
++    548:         # Draw platforms, coins, obstacles, and level complete flag
++    549:         for platform in platforms:
++    550:             platform.draw()
++    551:         for coin in coins:
++    552:             coin.draw()
++    553:         for obstacle in obstacles:
++    554:             obstacle.draw()
++    555:         level_complete.draw()
++    556:
++    557:         # Draw player
++    558:         player.draw()
++    559:
++    560:         # Draw level info
++    561:         level_text = font.render(f'Level: {current_level}/{max_level}', True, WHITE)
++    562:         screen.blit(level_text, (SCREEN_WIDTH - 150, 10))
++    563:
++    564:         # Draw game over or game complete message
++    565:         if game_over:
++    566:             over_text = large_font.render('GAME OVER!', True, RED)
++    567:             restart_text = font.render('Press R to restart', True, WHITE)
++    568:             screen.blit(over_text, (SCREEN_WIDTH // 2 - over_text.get_width() // 2, SCREEN_HEIGHT // 2 - 50))
++    569:             screen.blit(restart_text, (SCREEN_WIDTH // 2 - restart_text.get_width() // 2, SCREEN_HEIGHT // 2 + 10))
++    570:
++    571:         if game_complete:
++    572:             complete_text = large_font.render('CONGRATULATIONS!', True, GREEN)
++    573:             final_score_text = font.render(f'Final Score: {player.coins} coins', True, YELLOW)
++    574:             restart_text = font.render('Press R to play again', True, WHITE)
++    575:             screen.blit(complete_text, (SCREEN_WIDTH // 2 - complete_text.get_width() // 2, SCREEN_HEIGHT // 2 - 50))
++    576:             screen.blit(final_score_text, (SCREEN_WIDTH // 2 - final_score_text.get_width() // 2, SCREEN_HEIGHT // 2))
++    577:             screen.blit(restart_text, (SCREEN_WIDTH // 2 - restart_text.get_width() // 2, SCREEN_HEIGHT // 2 + 50))
++    578:
++    579:         pygame.display.update()
++    580:
++    581:     pygame.quit()
++    582:     sys.exit()
++    583:
++    584: if __name__ == "__main__":
++    585:     main()
